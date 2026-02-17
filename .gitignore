@@ -1,0 +1,51 @@
+# --- 1. Python Standard ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- 2. OS Junk (Mac/Windows) ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- 3. IDE Settings (VS Code, etc) ---
+.vscode/
+.idea/
+*.swp
+
+# --- 4. DATA & RESULTS ---
+data/
+Data/
+results/
+figures/
+processed_data/
+
+# Ignore specific large/sensitive file types (just in case)
+*.npy
+*.npz
+*.csv
+*.xlsx
+*.xls
+*.tsv
+*.mat
+*.pkl
+*.h5
+
+# --- 5. EEG Specific Formats (Raw Data) ---
+*.vhdr
+*.vmrk
+*.eeg
+*.bdf
+*.edf
+*.set
+*.fdt
+
+# --- 6. Python Environment ---
+env/
+venv/
+.venv/
+anaconda/
+
+# --- 7. Logs & Reports ---
+*.log
+hyperparameter_report.txt
