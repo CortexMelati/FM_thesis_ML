@@ -67,7 +67,7 @@ UNKNOWN_FILTER_FILE = TDBRAIN_DIR / "TDBRAIN_participants_UNKNOWN_NaNs.xlsx"
 SEARCH_PATHS = [
     str(RESULTS_DIR / "TDBrain" / "healthy"),
     str(RESULTS_DIR / "TDBrain" / "chronicpain"),
-    str(RESULTS_DIR / "TDBrain" / "unknown"),      # Was 'indications' in old script
+    str(RESULTS_DIR / "TDBrain" / "unknown"),      
     str(RESULTS_DIR / "TDBrain" / "unknown_nans"), # Added based on pipeline logic
     str(RESULTS_DIR / "chronicpain"),
 ]

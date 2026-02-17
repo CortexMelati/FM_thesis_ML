@@ -4,7 +4,6 @@
 **Date:** February 2026
 **Description:** This repository contains the complete data science pipeline for analyzing Resting-State EEG (rsEEG) data to identify spectral biomarkers for Chronic Pain. The project merges the internal **TDBrain** dataset with an external **Chronic Pain** dataset, utilizing both standard Machine Learning (Spectral Power) and Riemannian Geometry approaches.
 
-
 *Note: The scripts perform analysis on local data stored outside the repository. Update the `BASE_DIR` variable in the scripts to match your local data path.*
 
 ## Link to data
@@ -45,37 +44,60 @@ Before training predictive models, the data quality is verified against known ne
 
 The analysis pipeline is organized into modular components to separate data preparation from statistical analysis and modeling.
 
-thesis-eeg/
+FM_thesis_ML/
 ├── src/
-│   ├── Preprocessing/                 # Data Cleaning & Harmonization
-│   │   ├── Chronicpain prep/          # Scripts specific to external dataset
-│   │   │   ├── amend_vhdr...          # Fixes BrainVision headers
-│   │   │   ├── fill_nans...           # Handles missing values
-│   │   │   └── moving_files.py        # Restructures to BIDS format
-│   │   ├── preprocess_pipeline.py     # Main MNE-Python pipeline (RANSAC/AutoReject)
-│   │   ├── final_prep.py              # Merges features into master CSV
-│   │   └── split_participants...      # Splits TDBrain metadata
+│   ├── config.py                     # Centralized configuration (Paths, Bands, Channels)
+│   ├── ML_Main.py                    # Main ML Benchmark (Nested CV, Multi-model)
+│   ├── ML_Riemann.py                 # Riemannian Geometry & Tangent Space Pipeline
+│   ├── RF_validation_EO_EC.py        # EO/EC physiological signal quality validation
+│   ├── check_paths.py                # Utility to verify environment directory setup
 │   │
-│   ├── Visualizations_ML/             # Validation & Inspection Scripts
-│   │   ├── validate_physiology.py     # Berger Effect & Age correlations
-│   │   ├── visualize_site_effect.py   # Comparison of scanner noise
-│   │   ├── visualize_heatmap.py       # Generates Topomaps
-│   │   ├── ML_bias_variance.py        # Bias-Variance trade-off analysis
-│   │   └── Analysis_Ablation.py       # Feature importance (Leave-One-Band-Out)
+│   ├── Preprocessing/                # Data Cleaning & Harmonization
+│   │   ├── preprocess_pipeline.py    # Main MNE pipeline (Filtering, RANSAC, AutoReject)
+│   │   ├── final_prep.py             # Feature extraction & Master CSV generation
+│   │   ├── split_participants_TDBRAIN.py # Metadata categorization
+│   │   ├── check_data_completeness.py# Validates .npy file presence vs metadata
+│   │   ├── global_powers.py          # Baseline power calculation utilities
+│   │   ├── visualize_sensors.py      # Plots 10-20 system electrode layouts
+│   │   ├── preprocessing_plotting.py # Visual quality checks for cleaned signals
+│   │   ├── general_info.py           # Dataset statistics (Age, Sex distribution)
+│   │   │
+│   │   └── Chronicpain prep/         # External dataset specific utilities
+│   │       ├── amend_vhdr_file_...   # Fixes BrainVision headers
+│   │       ├── fill_nans_...         # Metadata cleaning
+│   │       └── moving_files.py       # File restructuring for BIDS compliance
 │   │
-│   ├── ML_Main.py                     # Main Benchmark (LR, XGB, SVM, RF)
-│   └── ML_Riemann.py                  # Riemannian Geometry Pipeline
+│   ├── Visualizations_ML/            # Validation & Statistical Inspection
+│   │   ├── ML_bias_variance.py       # Model generalization analysis
+│   │   ├── Analysis_Ablation.py      # Leave-One-Band-Out band importance
+│   │   ├── validate_physiology.py    # Berger Effect & Age correlations
+│   │   ├── visualize_heatmap.py      # Spatial power distribution (Topomaps)
+│   │   ├── visualize_site_effect.py  # Statistical comparison of scanner noise
+│   │   ├── stats_global_differences.py # Group-level spectral comparisons
+│   │   └── stats_tcd.py              # Thalamocortical Dysrhythmia specific tests
+│   │
+│   └── __pycache__/                  # Compiled Python files (ignored by Git)
 │
-├── results/                           # Output directory for CSVs and Figures
-├── environment.yml                    # Conda environment specification
-└── settings.json                      # VS Code workspace settings
+├── results/                          # Output directory
+│   ├── final_dataset.csv             # The master feature file for ML
+│   ├── final_benchmark_mega.csv      # Results from ML_Main.py
+│   ├── hyperparameter_report.txt     # Log of optimized model settings
+│   ├── TDBrain/                      # Processed TDBrain .npy epochs
+│   ├── chronicpain/                  # Processed External .npy epochs
+│   ├── processed_data/               # Temporary storage for pipeline stages
+│   └── figures/                      # Generated plots (ROC, CM, Topomaps)
+│
+├── .gitignore                        # Prevents sensitive data from being uploaded
+├── environment.yml                   # Conda environment specification
+├── LICENSE                           # Legal usage terms
+└── README.md                         # Project documentation
 ```
 
 ## Quick Start
 
 **1. Create the Master Dataset:**
 
-Walk through Chronicpain prep
+Walk through Chronicpain prep folder
 
 split .xlsx file of TDbrain into the needed subjects.
 
