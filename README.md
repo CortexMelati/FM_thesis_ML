@@ -1,7 +1,11 @@
 # Thesis EEG: Chronic Pain Classification using Resting-State EEG
 
-**Author:** Jasmyne
+**Author:** Jas
+
+
 **Date:** February 2026
+
+
 **Description:** This repository contains the complete data science pipeline for analyzing Resting-State EEG (rsEEG) data to identify spectral biomarkers for Chronic Pain. The project merges the internal **TDBrain** dataset with an external **Chronic Pain** dataset, utilizing both standard Machine Learning (Spectral Power) and Riemannian Geometry approaches.
 
 *Note: The scripts perform analysis on local data stored outside the repository. Update the `BASE_DIR` variable in the scripts to match your local data path.*
