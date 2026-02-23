@@ -8,7 +8,7 @@ This script tests whether high classification accuracy is driven by 'Site Effect
 (specifically the Delta band) or genuine physiological signals.
 
 Configurations:
-1. With Delta (Broadband 1-45 Hz) -> May contain scanner-specific noise/artifacts.
+1. With Delta (Broadband 1-100 Hz) -> May contain scanner-specific noise/artifacts.
 2. No Delta (High-pass > 4 Hz)    -> Physiologically focused (Theta/Alpha/Beta/Gamma).
 
 Metrics Evaluated:

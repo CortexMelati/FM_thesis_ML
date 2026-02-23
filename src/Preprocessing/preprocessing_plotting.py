@@ -87,7 +87,7 @@ def get_plots(raw: mne.io.Raw, step: str,
 
     # 3. Plot Time-Frequency Representation (TFR)
     def plot_tfr_on_ax(raw, ax, ch_idx):
-        freqs = np.arange(4, 45, 2) 
+        freqs = np.arange(4, 45, 2) # Focus on 4-40 Hz for better visualization but can be adjusted to 100 Hz if needed
         n_cycles = freqs / 2.0
         
         try:

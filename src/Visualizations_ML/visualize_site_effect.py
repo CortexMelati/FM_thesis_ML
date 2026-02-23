@@ -128,7 +128,7 @@ def plot_site_effects():
         plt.ylabel("Global Relative Power", fontsize=12)
         
         # Annotation for Delta Offset (approximate position)
-        plt.annotate('Site Effect (Delta Offset)', xy=(0, 0.45), xytext=(0.5, 0.55),
+        plt.annotate('Site Effect (Delta Offset)', xy=(0, 0.45), xytext=(0.5, 0.55), # Adjust coordinates as needed based on actual plot
                      arrowprops=dict(facecolor='black', shrink=0.05), fontsize=10, color='darkred')
         
         plt.tight_layout()

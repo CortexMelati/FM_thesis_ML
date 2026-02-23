@@ -1,6 +1,3 @@
-
-
-
 # Machine Learning & Analysis Pipeline
 
 This document details the scripts used for statistical validation, model training, and feature analysis.
@@ -51,7 +48,7 @@ This pipeline tests a geometric approach to classification. Instead of using pre
 
 * **Goal:** To determine if the high performance in the Merged dataset is driven by physiology or site-specific artifacts (Delta noise).
 * **Comparison:**
-  1. **Broadband (1-45 Hz):** Includes Delta (prone to site effects).
+  1. **Broadband (1-100 Hz):** Includes Delta (prone to site effects).
   2. **High-Pass (>4 Hz):** Excludes Delta (Physiological check).
 * **Pipeline:** `Covariance (OAS)` $\rightarrow$ `Tangent Space` $\rightarrow$ `Logistic Regression`.
 
