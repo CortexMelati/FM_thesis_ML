@@ -18,7 +18,7 @@ Output:
     - Trend Report: Text summary for thesis results section.
 
 Execution:
-    python ./FM_thesis_ML/src/Visualizations_ML/stats_global_differences.py
+    python ./FM_thesis_ML/src/Visualizations_Prep/stats_global_differences.py
 =============================================================================
 """
 

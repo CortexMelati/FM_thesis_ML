@@ -1,6 +1,6 @@
 """
 =============================================================================
-FEATURE VALIDATION: EYES OPEN vs. EYES CLOSED CLASSIFICATION
+📜 FEATURE VALIDATION: EYES OPEN vs. EYES CLOSED CLASSIFICATION
 =============================================================================
 Objective:
     Validate signal quality by classifying Eyes Open (EO) vs. Eyes Closed (EC)
@@ -10,12 +10,11 @@ Objective:
     genuine physiological information (specifically the Berger effect/Alpha blocking).
 
 Datasets Evaluated:
-    1. TDBrain Healthy (N=37)
-    2. Chronic Pain Dataset (External) (N=62)
-    3. TDBrain No Indication (Unknown) (N=155)
-    4. Combined Dataset (All of the above)
-
-    - Approximately 12 epochs per participant (N=254 total subjects).
+    1. TDBrain Healthy
+    2. Chronic Pain Dataset (External)
+    3. TDBrain No Indication (Unknown)
+    4. TDBrain Chronic Pain
+    5. Combined Dataset (no delta?)
 
 Methodology:
     - Features: 20 Regional Features (4 Regions x 5 Frequency Bands).
@@ -25,10 +24,9 @@ Methodology:
 Outputs:
     - Epoch-level Accuracy per dataset.
     - Classification Reports (Precision, Recall, F1).
-    - Feature Importance ranking (Occipital Alpha should be top).
+    - Feature Importance ranking.
 
-Input: results/final_dataset.csv
-Execution: python ./FM_thesis_ML/src/Visualizations_ML/RF_validation_EO_EC.py
+Execution: python ./FM_thesis_ML/src/RF_validation_EO_EC.py
 =============================================================================
 """
 
@@ -48,23 +46,20 @@ from pathlib import Path
 # ==========================================
 # 0. CONFIG IMPORT
 # ==========================================
-# Add 'src' to system path to import config
+# Add 'src' to system path to import config safely
 current_dir = Path(__file__).resolve().parent
-sys.path.append(str(current_dir))
+sys.path.append(str(current_dir.parent))
 
-from config import RESULTS_DIR, FIGURES_DIR, BANDS
+from config import RESULTS_DIR, FIGURES_DIR
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 DATA_FILE = RESULTS_DIR / "final_dataset.csv"
 IMG_DIR = FIGURES_DIR
-
-# Ensure output directory exists
 IMG_DIR.mkdir(parents=True, exist_ok=True)
 
-# Extract band names from config dictionary keys ['Delta', 'Theta', ...]
-BAND_NAMES = list(BANDS.keys())
+BANDS = ['Delta', 'Theta', 'Alpha', 'Beta', 'Gamma']
 
 # Region Mapping: Average specific channels to create regional features
 REGIONS = {
@@ -100,24 +95,22 @@ def run_tuned_validation():
     df_all = pd.read_csv(DATA_FILE)
 
     # 1. Filter Data: Only EO/EC conditions and relevant groups
-    relevant_groups = ['TDBrain_Healthy', 'External_CP', 'TDBrain_Unknown_NoIndication']
+    relevant_groups = [
+        'TDBrain_Healthy', 
+        'External_CP', 
+        'TDBrain_Unknown_NoIndication', 
+        'TDBrain_ChronicPain'
+    ]
+    
     df_all = df_all[
         (df_all['Condition'].isin(['EC', 'EO'])) & 
         (df_all['Group_Detailed'].isin(relevant_groups))
     ].copy()
 
-    if df_all.empty:
-        print("⚠️ Warning: No valid data found after filtering.")
-        return
-
     # 2. Compute Regional Features
-    
-
-[Image of brain lobes and regions]
-
     feature_cols = []
     for reg_name, channels in REGIONS.items():
-        for band in BAND_NAMES:
+        for band in BANDS:
             cols = []
             for ch in channels:
                 c = get_col_name(df_all, ch, band)
@@ -129,14 +122,15 @@ def run_tuned_validation():
                 df_all[feat_name] = df_all[cols].mean(axis=1)
                 feature_cols.append(feat_name)
     
-    print(f"   Total Generated Features: {len(feature_cols)}")
+    print(f"   Total Generated Regional Features: {len(feature_cols)}")
 
     # 3. Define Datasets for Analysis
     datasets = {
         '1. TDBrain Healthy':      df_all[df_all['Group_Detailed'] == 'TDBrain_Healthy'],
         '2. External CP':          df_all[df_all['Group_Detailed'] == 'External_CP'],
         '3. TDBrain No Indication':df_all[df_all['Group_Detailed'] == 'TDBrain_Unknown_NoIndication'],
-        '4. Combined Dataset':     df_all
+        '4. TDBrain Chronic Pain': df_all[df_all['Group_Detailed'] == 'TDBrain_ChronicPain'],
+        '5. Combined Dataset':     df_all
     }
 
     # =========================================================================
@@ -191,10 +185,10 @@ def run_tuned_validation():
         indices = np.argsort(imps)[::-1]
         
         print("\n   🔝 TOP 3 FEATURES (Expectation: Occipital Alpha):")
-        for i in range(min(3, len(indices))):
+        for i in range(3):
             print(f"      {feature_cols[indices[i]]:<20}: {imps[indices[i]]:.4f}")
 
-    print("\n✅ Validation Complete. Ensure 'Occipital_Alpha' is among the top features.")
+    print("\n✅ Validation Complete.")
 
 if __name__ == "__main__":
     run_tuned_validation()

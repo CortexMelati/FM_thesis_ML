@@ -2,9 +2,7 @@
 
 **Author:** Jas
 
-
 **Date:** February 2026
-
 
 **Description:** This repository contains the complete data science pipeline for analyzing Resting-State EEG (rsEEG) data to identify spectral biomarkers for Chronic Pain. The project merges the internal **TDBrain** dataset with an external **Chronic Pain** dataset, utilizing both standard Machine Learning (Spectral Power) and Riemannian Geometry approaches.
 
@@ -54,37 +52,38 @@ FM_thesis_ML/
 │   ├── ML_Main.py                    # Main ML Benchmark (Nested CV, Multi-model)
 │   ├── ML_Riemann.py                 # Riemannian Geometry & Tangent Space Pipeline
 │   ├── RF_validation_EO_EC.py        # EO/EC physiological signal quality validation
-│   ├── check_paths.py                # Utility to verify environment directory setup
+│   ├── RF_site_prediction.py         # Hardware bias check (predicting recording site)
 │   │
 │   ├── Preprocessing/                # Data Cleaning & Harmonization
 │   │   ├── preprocess_pipeline.py    # Main MNE pipeline (Filtering, RANSAC, AutoReject)
 │   │   ├── final_prep.py             # Feature extraction & Master CSV generation
 │   │   ├── split_participants_TDBRAIN.py # Metadata categorization
-│   │   ├── check_data_completeness.py# Validates .npy file presence vs metadata
 │   │   ├── global_powers.py          # Baseline power calculation utilities
-│   │   ├── visualize_sensors.py      # Plots 10-20 system electrode layouts
 │   │   ├── preprocessing_plotting.py # Visual quality checks for cleaned signals
 │   │   ├── general_info.py           # Dataset statistics (Age, Sex distribution)
 │   │   │
-│   │   └── Chronicpain prep/         # External dataset specific utilities
-│   │       ├── amend_vhdr_file_...   # Fixes BrainVision headers
-│   │       ├── fill_nans_...         # Metadata cleaning
+│   │   └── Chronicpain_prep/         # External dataset specific utilities
+│   │       ├── amend_vhdr_file_chronicpain.py # Fixes BrainVision headers
 │   │       └── moving_files.py       # File restructuring for BIDS compliance
 │   │
-│   ├── Visualizations_ML/            # Validation & Statistical Inspection
-│   │   ├── ML_bias_variance.py       # Model generalization analysis
-│   │   ├── Analysis_Ablation.py      # Leave-One-Band-Out band importance
+│   ├── Visualizations_Prep/          # Validation & Statistical Inspection
+│   │   ├── stats_global_differences.py # Group-level spectral comparisons
+│   │   ├── stats_tcd.py              # Thalamocortical Dysrhythmia specific tests
 │   │   ├── validate_physiology.py    # Berger Effect & Age correlations
 │   │   ├── visualize_heatmap.py      # Spatial power distribution (Topomaps)
-│   │   ├── visualize_site_effect.py  # Statistical comparison of scanner noise
-│   │   ├── stats_global_differences.py # Group-level spectral comparisons
-│   │   └── stats_tcd.py              # Thalamocortical Dysrhythmia specific tests
+│   │   ├── visualize_sensors.py      # Plots 10-20 system electrode layouts
+│   │   └── visualize_site_effect.py  # Statistical comparison of scanner noise
 │   │
-│   └── __pycache__/                  # Compiled Python files (ignored by Git)
+│   └── ML_checks/                    # Advanced Model Diagnostics
+│       ├── Analysis_Ablation.py      # Leave-One-Band-Out band importance
+│       ├── ML_bias_variance.py       # Model generalization analysis
+│       └── ML_Main_copy.py           # Expanded parameter grid for overfitting checks
 │
 ├── results/                          # Output directory
 │   ├── final_dataset.csv             # The master feature file for ML
 │   ├── final_benchmark_mega.csv      # Results from ML_Main.py
+│   ├── validation_global_powers.csv  # Processed statistical baseline values
+│   ├── validation_stats_report.txt   # Output of statistical significance testing
 │   ├── hyperparameter_report.txt     # Log of optimized model settings
 │   ├── TDBrain/                      # Processed TDBrain .npy epochs
 │   ├── chronicpain/                  # Processed External .npy epochs
@@ -106,7 +105,7 @@ Walk through Chronicpain prep folder
 split .xlsx file of TDbrain into the needed subjects.
 
 ```
-python ./thesis-eeg/src/split_participants.py
+python ./thesis-eeg/src/split_participants_TDBRAIN.py
 ```
 
 ```

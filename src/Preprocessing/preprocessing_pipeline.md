@@ -4,27 +4,17 @@
 
 ---
 
-## 1: Data Audit & Completeness Check
+Unpack the following files for TDBrain
 
-**Script:** `src/check_data_completeness.py`
+.tsv
+.eeg
+.json
+.vhdr
+.vmrk
 
-**Objective:** To verify that every subject listed in the metadata has a corresponding data folder containing all required file types (`.npy`, `.txt`, `.csv`, `.pdf`) for both experimental conditions (Eyes Closed `EC` / Eyes Open `EO`).
+.xlsx - participants file
 
-### Methodology
-
-1. **Input:** Reads participant IDs from 5 sources:
-   * TDBrain Healthy (Excel)
-   * TDBrain Chronic Pain (Excel)
-   * TDBrain Unknown Indication (Excel)
-   * TDBrain Unknown/NaN (Excel)
-   * External Chronic Pain Dataset (TSV)
-2. **Audit Logic:** Iterates through every subject ID and checks the `results/` directory.
-3. **Validation:** Flags subjects as "MISSING FOLDER" or "INCOMPLETE" if specific files are absent.
-4. **Output:** Generates `full_dataset_audit.csv` containing a status report for every subject.
-
----
-
-## 2: Metadata Splitting (TDBrain)
+## 1: Metadata Splitting (TDBrain)
 
 **Script:** `src/split_participants_TDBRAIN.py`
 
@@ -46,9 +36,7 @@ The script filters subjects based on `formal_status` and `indication` columns:
 * `TDBRAIN_participants_UNKNOWN.xlsx`
 * `TDBRAIN_participants_UNKNOWN_NaNs.xlsx`
 
----
-
-## 3: Core Signal Processing Pipeline
+## 2: Core Signal Processing Pipeline
 
 **Script:** `src/preprocess_pipeline.py`
 
@@ -74,9 +62,7 @@ The script filters subjects based on `formal_status` and `indication` columns:
 
 **Dependencies:** `preprocessing_plotting.py` (Handles generation of visual reports without opening GUI windows).
 
----
-
-## 4: Final Data Merge
+## 3: Final Data Merge
 
 **Script:** `src/final_prep.py`
 
@@ -87,20 +73,40 @@ The script filters subjects based on `formal_status` and `indication` columns:
 1. **Inclusion Criteria:**
    * Subject must be $\ge$ 18 years old.
    * Subject must have **BOTH** EC and EO processed files available.
+   * Amount of epochs can be specified.
 2. **Labeling:**
    * **Healthy:** Label `0`
    * **Chronic Pain (Internal + External):** Label `1`
-   * **Unknown (Informal):** Label `-1`
-   * **Unknown (NaN):** Label `-2`
+   * **Unknown (NaN):** Label `-1`
 3. **Merging:**
    * Iterates through all valid feature files.
    * Appends Age, Gender, and Diagnosis columns.
    * Concatenates into one large DataFrame.
 4. **Output:** `results/final_dataset.csv` (The input for all Machine Learning models).
 
+## 4: Data Audit & Completeness Check Last
+
+**Script:** `src/check_data_completeness.py`
+
+**Objective:** To verify that every subject listed in the metadata has a corresponding data folder containing all required file types (`.npy`, `.txt`, `.csv`, `.pdf`) for both experimental conditions (Eyes Closed `EC` / Eyes Open `EO`).
+
+### Methodology
+
+1. **Input:** Reads participant IDs from 5 sources:
+   * TDBrain Healthy (Excel)
+   * TDBrain Chronic Pain (Excel)
+   * TDBrain Unknown Indication (Excel)
+   * TDBrain Unknown/NaN (Excel)
+   * External Chronic Pain Dataset (TSV)
+2. **Audit Logic:** Iterates through every subject ID and checks the `results/` directory.
+3. **Validation:** Flags subjects as "MISSING FOLDER" or "INCOMPLETE" if specific files are absent.
+4. **Output:** Generates `full_dataset_audit.csv` containing a status report for every subject.
+
 ---
 
-## 5: Validation & Descriptive Statistics
+
+
+## 5: Validation & Descriptive Statistics. Not needed for ML/riemann pipeline
 
 ### A. Global Power Validation
 

@@ -37,9 +37,6 @@ from pathlib import Path
 current_dir = Path(__file__).resolve().parent
 sys.path.append(str(current_dir.parent))
 
-# (Optional: Import config if specific constants are needed in future)
-# from config import BANDS
-
 # =============================================================================
 # 1. SETUP
 # =============================================================================
@@ -66,10 +63,10 @@ def get_plots(raw: mne.io.Raw, step: str,
             fig = raw.plot(n_channels=n_ch, scalings=scalings, title=step, 
                            show_scrollbars=False, show=False, duration=10.0)
             
-            # Render to numpy array
+            # Render to numpy array (Modern Matplotlib >= 3.8 fix)
             fig.canvas.draw()
-            data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-            data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            rgba = np.asarray(fig.canvas.buffer_rgba())
+            data = rgba[..., :3]  # Keep only RGB channels, drop Alpha
             plt.close(fig)
         return data
 
@@ -78,16 +75,16 @@ def get_plots(raw: mne.io.Raw, step: str,
         # fmax updated to 100Hz to match preprocessing filter settings
         fig = raw.compute_psd(fmin=1, fmax=100).plot(picks='eeg', show=False)
         
-        # Render to numpy array
+        # Render to numpy array (Modern Matplotlib >= 3.8 fix)
         fig.canvas.draw()
-        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        rgba = np.asarray(fig.canvas.buffer_rgba())
+        data = rgba[..., :3]  # Keep only RGB channels, drop Alpha
         plt.close(fig)
         return data
 
     # 3. Plot Time-Frequency Representation (TFR)
     def plot_tfr_on_ax(raw, ax, ch_idx):
-        freqs = np.arange(4, 45, 2) # Focus on 4-40 Hz for better visualization but can be adjusted to 100 Hz if needed
+        freqs = np.arange(4, 45, 2) # Focus on 4-40 Hz for better visualization
         n_cycles = freqs / 2.0
         
         try:

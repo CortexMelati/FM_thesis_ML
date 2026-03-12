@@ -6,7 +6,7 @@ Objective:
     1. RAW PROFILE: Visualize the substantial Delta offset in the External dataset (Site B),
        demonstrating the "Site Effect" caused by different scanner hardware/settings.
     2. HARMONIZED PROFILE: Demonstrate that after 'No-Delta Normalization', the spectral
-       curves of the two datasets align significantly better.
+       curves of the datasets align significantly better.
 
 Input:
     - results/final_dataset.csv
@@ -16,7 +16,7 @@ Output:
     - results/figures/site_effect_profile_harmonized.png
 
 Execution:
-    python ./FM_thesis_ML/src/Visualizations_ML/visualize_site_effect.py
+    python ./FM_thesis_ML/src/Visualizations_Prep/visualize_site_effect.py
 =============================================================================
 """
 
@@ -63,9 +63,14 @@ def plot_site_effects():
     print("📊 Starting Site Effect Visualization...")
     df = pd.read_csv(DATA_FILE)
 
-    # Filter Data (EC condition + 3 Groups of interest)
+    # Filter Data (EC condition + 4 Groups of interest)
     # Note: Ensure these group names match what is produced by 'final_prep.py'
-    groups = ['TDBrain_Healthy', 'TDBrain_ChronicPain', 'External_CP']
+    groups = [
+        'TDBrain_Healthy', 
+        'TDBrain_ChronicPain', 
+        'External_CP', 
+        'TDBrain_Unknown_NoIndication'
+    ]
     df = df[(df['Condition'] == 'EC') & (df['Group_Detailed'].isin(groups))].copy()
 
     if df.empty:
@@ -79,6 +84,7 @@ def plot_site_effects():
     group_map = {
         'TDBrain_Healthy': f'TDBrain: Healthy (N={counts.get("TDBrain_Healthy", 0)})',
         'TDBrain_ChronicPain': f'TDBrain: Pain (N={counts.get("TDBrain_ChronicPain", 0)})',
+        'TDBrain_Unknown_NoIndication': f'TDBrain: No Indication (N={counts.get("TDBrain_Unknown_NoIndication", 0)})',
         'External_CP': f'External: Pain (N={counts.get("External_CP", 0)})'
     }
     
@@ -90,6 +96,7 @@ def plot_site_effects():
     custom_pal = {
         group_map['TDBrain_Healthy']: 'forestgreen', 
         group_map['TDBrain_ChronicPain']: 'firebrick', 
+        group_map['TDBrain_Unknown_NoIndication']: 'slategray', # Neutral color for the unlabelled group
         group_map['External_CP']: 'darkorange'
     }
 
@@ -127,9 +134,9 @@ def plot_site_effects():
         plt.title("Evidence of Site Effects: Raw Spectral Profile", fontsize=14, fontweight='bold')
         plt.ylabel("Global Relative Power", fontsize=12)
         
-        # Annotation for Delta Offset (approximate position)
-        plt.annotate('Site Effect (Delta Offset)', xy=(0, 0.45), xytext=(0.5, 0.55), # Adjust coordinates as needed based on actual plot
-                     arrowprops=dict(facecolor='black', shrink=0.05), fontsize=10, color='darkred')
+        # # Annotation for Delta Offset (approximate position)
+        # plt.annotate('Site Effect (Delta Offset)', xy=(0, 0.45), xytext=(0.5, 0.55), 
+        #              arrowprops=dict(facecolor='black', shrink=0.05), fontsize=10, color='darkred')
         
         plt.tight_layout()
         save_path_raw = IMG_DIR / "site_effect_profile_raw.png"

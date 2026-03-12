@@ -18,7 +18,7 @@ Objective:
     - Barplot showing the relative impact (gain/loss) of removing a band.
 
 Execution:
-    python ./FM_thesis_ML/src/Visualizations_ML/Analysis_Ablation.py
+    python ./FM_thesis_ML/src/ML_checks/Analysis_Ablation.py
 =============================================================================
 """
 

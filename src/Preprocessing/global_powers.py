@@ -9,7 +9,7 @@ Objective:
     3. Ensure metadata (specifically Age) is attached, attempting a fallback 
        merge with external metadata if missing.
     4. Save the result as 'validation_global_powers.csv' for use in 
-       physiological validation scripts (e.g., Berger Effect, Age Correlation).
+       physiological validation scripts (Berger Effect, Age Correlation).
 
 Input:
     - results/final_dataset.csv

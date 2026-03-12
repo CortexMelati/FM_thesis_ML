@@ -16,7 +16,7 @@ Objective:
 Focus: Scenario 3 (Merged Dataset), No-Delta Features, Logistic Regression.
 
 Execution:
-    python ./FM_thesis_ML/src/Visualizations_ML/ML_bias_variance.py
+    python ./FM_thesis_ML/src/ML_checks/ML_bias_variance.py
 =============================================================================
 """
 

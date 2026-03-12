@@ -6,6 +6,9 @@ Overview:
     This script performs the standard preprocessing pipeline for the Thesis EEG data.
     It transforms raw EEG files (.vhdr) into cleaned epochs and extracted features.
 
+To test the pipeline change NUM_SUBJECTS_TO_PROCESS = 5 
+(or any number) to randomly sample that many subjects per dataset for quick testing.    
+
 Key Steps:
     1. SCALING:    Detects if data is in Volts and rescales to Microvolts (uV).
     2. BASELINE:   Removes DC offset (centers data around 0).
@@ -30,6 +33,7 @@ import numpy as np
 import pandas as pd
 import os
 import glob
+import random
 from autoreject import AutoReject, Ransac
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -37,6 +41,7 @@ from tqdm import tqdm
 import warnings
 import sys
 from pathlib import Path
+
 
 # ==========================================
 # 0. CONFIG IMPORT
@@ -73,17 +78,21 @@ META_DIR = TDBRAIN_DIR
 # Paths to the 4 specific subject lists (Using Path objects)
 PATH_HEALTHY      = META_DIR / "TDBRAIN_participants_HEALTHY.xlsx"
 PATH_PAIN         = META_DIR / "TDBRAIN_participants_CHRONIC_PAIN.xlsx"
-PATH_UNKNOWN      = META_DIR / "TDBRAIN_participants_UNKNOWN.xlsx"
-PATH_UNKNOWN_NANS = META_DIR / "TDBRAIN_participants_UNKNOWN_NaNs.xlsx"
+# PATH_UNKNOWN      = META_DIR / "TDBRAIN_participants_UNKNOWN.xlsx" not used for research purposes, but kept for reference
+PATH_UNKNOWN_NANS = META_DIR / "TDBRAIN_participants_UNKNOWN_NaNs.xlsx" # unknown without indication
 
 # Output Directory
 OUTPUT_DIR = RESULTS_DIR
+
+# TEST MODE: 
+# Whole dataset = None (process all subjects) else, set to a number to randomly sample that many subjects per dataset for quick testing.
+NUM_SUBJECTS_TO_PROCESS = None
 
 # --- DATASETS CONFIGURATION ---
 # Convert Paths to strings for glob compatibility
 DATASETS = [
     (str(CHRONIC_PAIN_DIR / "derivatives"), "*.vhdr", "chronicpain_set"),
-    (str(TDBRAIN_DIR / "derivatives"), "*.vhdr", "tdbrain")
+    (str(TDBRAIN_DIR), "*.vhdr", "tdbrain")
 ]
 
 # EEG Parameters (Loaded from Config)
@@ -120,12 +129,12 @@ def load_ids_from_excel(filepath):
 print("📂 Loading subject lists from Excel...")
 TDBRAIN_HEALTHY_IDS = load_ids_from_excel(PATH_HEALTHY)
 TDBRAIN_CHRONIC_PAIN_IDS = load_ids_from_excel(PATH_PAIN)
-TDBRAIN_UNKNOWN_IDS = load_ids_from_excel(PATH_UNKNOWN)
+# TDBRAIN_UNKNOWN_IDS = load_ids_from_excel(PATH_UNKNOWN)
 TDBRAIN_UNKNOWN_NANS_IDS = load_ids_from_excel(PATH_UNKNOWN_NANS)
 
 print(f"   -> {len(TDBRAIN_HEALTHY_IDS)} Healthy subjects.")
 print(f"   -> {len(TDBRAIN_CHRONIC_PAIN_IDS)} Chronic Pain subjects.")
-print(f"   -> {len(TDBRAIN_UNKNOWN_IDS)} Unknown Status subjects.")
+# print(f"   -> {len(TDBRAIN_UNKNOWN_IDS)} Unknown Status subjects.")
 print(f"   -> {len(TDBRAIN_UNKNOWN_NANS_IDS)} Unknown/NaN Indication subjects.")
 
 def get_condition(filename):
@@ -222,10 +231,10 @@ def process_subject(file_path, output_dir, dataset_name):
             sub_folder = os.path.join('TDBrain', 'healthy')
         elif subject_id in TDBRAIN_CHRONIC_PAIN_IDS:
             sub_folder = os.path.join('TDBrain', 'chronicpain')
-        elif subject_id in TDBRAIN_UNKNOWN_IDS:
-            sub_folder = os.path.join('TDBrain', 'unknown')
+        # elif subject_id in TDBRAIN_UNKNOWN_IDS:
+        #    sub_folder = os.path.join('TDBrain', 'unknown')
         elif subject_id in TDBRAIN_UNKNOWN_NANS_IDS:
-            sub_folder = os.path.join('TDBrain', 'unknown_nans')
+            sub_folder = os.path.join('TDBrain', 'unknown_nans') # same ID's as 'unknown', but kept separate for clarity if needed (should be seperated in the excel lists)
         else:
             # Not in any of the 4 lists -> SKIP
             return False, f"Skipped (ID {subject_id} not in selected groups)"
@@ -235,10 +244,12 @@ def process_subject(file_path, output_dir, dataset_name):
     save_dir = os.path.join(output_dir, sub_folder, subject_id)
     os.makedirs(save_dir, exist_ok=True)
     
-    # Check if already processed
+    # Check if already processed AND if the PDF exists
     csv_check = os.path.join(save_dir, f"{subject_id}_{condition}_features.csv")
-    if os.path.exists(csv_check):
-       return True, f"Skipped (Already exists)"
+    pdf_check = os.path.join(save_dir, f"{subject_id}_{condition}_report.pdf")
+    
+    if os.path.exists(csv_check) and os.path.exists(pdf_check):
+       return True, f"Skipped (Already exists with PDF)"
 
     try:
         # 1. LOAD DATA
@@ -332,14 +343,31 @@ def process_subject(file_path, output_dir, dataset_name):
 # --- MAIN LOOP ---
 if __name__ == "__main__":
     print(f"🚀 Starting FINAL Preprocessing Pipeline")
+    if NUM_SUBJECTS_TO_PROCESS is not None:
+        print(f"⚠️ TEST MODE ACTIVE: Processing {NUM_SUBJECTS_TO_PROCESS} RANDOM subjects per dataset!")
     
     all_files = []
     for folder, pattern, ds_name in DATASETS:
         print(f"📂 Scanning {folder} for {pattern}...")
         found = glob.glob(os.path.join(folder, "**", pattern), recursive=True)
-        # Filter files that are already processed (skip 'clean' or 'results' folders)
-        found = [f for f in found if 'clean' not in f and 'results' not in f]
+        
+        valid_found = []
         for f in found:
+            # Skip folders we already processed
+            if 'clean' in f or 'results' in f:
+                continue
+            # Skip onbewerkte originele bestanden van Chronic Pain
+            if ds_name == 'chronicpain_set' and not f.endswith('_new.vhdr'):
+                continue
+            
+            valid_found.append(f)
+        
+        # Randomize and limit number of subjects if in TEST MODE
+        if NUM_SUBJECTS_TO_PROCESS is not None:
+            aantal = min(NUM_SUBJECTS_TO_PROCESS, len(valid_found)) 
+            valid_found = random.sample(valid_found, aantal)
+            
+        for f in valid_found:
             all_files.append((f, ds_name))
 
     print(f"\n🔍 Total files to process: {len(all_files)}")
@@ -363,8 +391,3 @@ if __name__ == "__main__":
     print(f"✅ Processed: {len(successes)}")
     print(f"⏭️  Skipped:   {len(skipped)}")
     print(f"❌ Failed:    {len(failures)}")
-    
-    if failures:
-        print("\n📋 Failures Log:")
-        for f in failures[:10]:
-            print(f"{f[0][:30]:<30} -> {f[2]}")

@@ -1,6 +1,7 @@
 """
 =============================================================================
-ML PIPELINE: EPOCH-BASED CLASSIFICATION BENCHMARK
+ML PIPELINE: EPOCH-BASED CLASSIFICATION BENCHMARK - extra tests for own info (not included in thesis)
+not better than the original ML_Main.py, but serves as a sandbox for testing additional hyperparameters and configurations without affecting the main results.
 =============================================================================
 
 Overview:
@@ -16,8 +17,8 @@ Experimental Conditions:
 
 Scenarios:
     1. TDBrain Pure:     Healthy Controls vs. Chronic Pain (Internal Dataset).
-    2. TDBrain Extended: Includes subjects with informal indications. 
-    3. Merged Dataset:   TDBrain + External Chronic Pain Dataset. 
+    2. TDBrain Extended: Includes subjects with informal indications.
+    3. Merged Dataset:   TDBrain + External Chronic Pain Dataset.
                          (Note: Delta band is excluded in Scen 3 to mitigate site effects).
 
 Models Evaluated:
@@ -30,16 +31,16 @@ Models Evaluated:
     - Dummy: Random baseline for performance comparison.
 
 Outputs:
-    - final_benchmark_mega.csv:      Quantitative performance metrics (Accuracy, Sensitivity, AUPRC, etc.).
-    - figures/detailed_metrics/:     ROC Curves, PRC Curves, Confusion Matrices, and Barplots.
+    - final_benchmark_mega.csv:      Quantitative performance metrics (Accuracy, Sensitivity, etc.).
+    - figures/detailed_metrics/:     ROC Curves, Confusion Matrices, and Barplots.
     - hyperparameter_report.txt:     Log of optimal hyperparameters found via GridSearch.
 
 Execution:
-    python ./FM_thesis_ML/src/ML_Main.py
+    python ./FM_thesis_ML/src/ML_Main_copy.py
 =============================================================================
 """
-# from sklearnex import patch_sklearn
-# patch_sklearn()
+from sklearnex import patch_sklearn
+patch_sklearn()
 
 import pandas as pd
 import numpy as np
@@ -67,7 +68,7 @@ from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.model_selection import StratifiedGroupKFold, GridSearchCV
 
 # Metrics
-from sklearn.metrics import recall_score, confusion_matrix, roc_curve, auc, f1_score, precision_recall_curve, average_precision_score
+from sklearn.metrics import recall_score, confusion_matrix, roc_curve, auc, f1_score
 
 # --- IMPORT MODELS ---
 from sklearn.linear_model import LogisticRegression
@@ -85,19 +86,24 @@ os.environ["PYTHONWARNINGS"] = "ignore"
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
-DATA_FILE = RESULTS_DIR / "final_dataset.csv"
-IMG_DIR = FIGURES_DIR / "detailed_metrics"
-REPORT_FILE = RESULTS_DIR / "hyperparameter_report.txt"
-CSV_OUTPUT = RESULTS_DIR / "final_benchmark_mega.csv"
+# nieuw pad voor de kopie-resultaten
+RESULTS_COPY_DIR = current_dir.parent / "results_copy"
 
-# Ensure output directory exists
+DATA_FILE = RESULTS_DIR / "final_dataset.csv"
+
+# nieuwe outputs naar de results_copy map
+IMG_DIR = RESULTS_COPY_DIR / "figures" / "detailed_metrics"
+REPORT_FILE = RESULTS_COPY_DIR / "hyperparameter_report.txt"
+CSV_OUTPUT = RESULTS_COPY_DIR / "final_benchmark_mega.csv"
+
+# nieuwe mappen
+RESULTS_COPY_DIR.mkdir(parents=True, exist_ok=True)
 IMG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Feature Definitions
 # Dynamically load from Config
 ALL_BANDS = list(BANDS.keys())
 NO_DELTA_BANDS = [b for b in ALL_BANDS if b != 'Delta'] # Excluded in Scenario 3
-# CHANNELS imported from config
 
 # =============================================================================
 # 1. MODEL CONFIGURATION (ALGORITHMS)
@@ -113,7 +119,7 @@ MODELS = {
         # solver='liblinear' supports L1 (Lasso) and L2 (Ridge) regularization.
         'model': LogisticRegression(max_iter=3000, class_weight='balanced', solver='liblinear'),
         'params': {
-            'clf__C': [0.1, 1, 5, 10],   # Low C = Strong regularization (prevents overfitting), High C = Weak regularization
+            'clf__C': [0.0001, 0.001, 0.01, 0.1, 1, 5, 10, 25, 50],   # Low C = Strong regularization (prevents overfitting), High C = Weak regularization
             'clf__penalty': ['l1', 'l2'] # L1 allows for feature selection
         }
     },
@@ -123,7 +129,8 @@ MODELS = {
         'model': LinearDiscriminantAnalysis(),
         'params': [
             {'clf__solver': ['svd'], 'clf__shrinkage': [None]},
-            {'clf__solver': ['lsqr'], 'clf__shrinkage': [None, 'auto', 0.1, 0.5]} # Shrinkage improves performance in high-dimensional spaces
+            {'clf__solver': ['lsqr'], 'clf__shrinkage': [None, 'auto', 
+                                                         0.0001, 0.001, 0.01, 0.1, 0.5]} # Shrinkage improves performance in high-dimensional spaces
         ]
     },
     'SVM': {
@@ -131,16 +138,16 @@ MODELS = {
         'model': SVC(kernel='rbf', probability=True, class_weight='balanced', cache_size=1000),
         'params': {
             'clf__C': [0.1, 1, 5, 10, 50, 75, 100], 
-            'clf__gamma': ['scale', 0.01, 1, 10]
+            'clf__gamma': ['scale', 0.01, 1, 10, 50, 100] # 'scale' is default and often a good starting point, but testing fixed values can find better fits for EEG data
         }
     },
     'RF': {
         # Random Forest
         'model': RandomForestClassifier(random_state=42, class_weight='balanced'),
         'params': {
-            'clf__n_estimators': [100, 200, 400], 
-            'clf__max_depth': [None, 10, 20, 40], # Shallow trees (e.g., 10) often generalize better on noisy EEG data
-            'clf__min_samples_leaf': [2, 5, 10],
+            'clf__n_estimators': [100, 200, 400, 1000], 
+            'clf__max_depth': [None, 10, 20, 30, 50, 100], # Shallow trees (e.g., 10) often generalize better on noisy EEG data
+            'clf__min_samples_leaf': [2, 5, 10, 50, 100],
             'clf__criterion': ['gini', 'entropy', 'log_loss']
         }
     },
@@ -149,15 +156,15 @@ MODELS = {
         # eval_metric='logloss' prevents warnings.
         'model': XGBClassifier(eval_metric='logloss', random_state=42, n_jobs=1),
         'params': {
-            'clf__n_estimators': [100, 200],
-            'clf__max_depth': [3, 5],            
+            'clf__n_estimators': [100, 200, 500, 1000],
+            'clf__max_depth': [3, 5, 10, 30, 50, 100],            
             'clf__learning_rate': [0.01, 0.1],    
             'clf__scale_pos_weight': [1, 3] # 1 = No correction, 3 = Prioritize minority class (Pain)
         }
     },
     'MLP': {
         # Multi-Layer Perceptron (Neural Net)
-        'model': MLPClassifier(max_iter=1000, early_stopping=True, random_state=42),
+        'model': MLPClassifier(max_iter=2000, early_stopping=True, random_state=42),
         'params': {
             'clf__hidden_layer_sizes': [(50,), (100,), (100, 50)],
             'clf__alpha': [0.0001, 0.01],         
@@ -192,7 +199,7 @@ def prepare_scenario_data(df_full, scenario_id):
     Args:
         df_full (pd.DataFrame): The complete dataset.
         scenario_id (int): 1, 2, or 3.
-        ** could be amended to notation given in preprocessing -> datasets were given 1, 0, and -1 for Healthy, Unknown, and Pain respectively. This would make it easier to label the data here.
+        
     Returns:
         pd.DataFrame, list: Filtered dataframe and list of feature columns.
     """
@@ -275,6 +282,7 @@ def plot_prc_curve_combined(prc_data, title, filename, baseline):
     plt.savefig(IMG_DIR / filename)
     plt.close()
 
+
 # =============================================================================
 # 3. MAIN EXECUTION LOOP
 # =============================================================================
@@ -321,15 +329,10 @@ def run_benchmark():
             X = df_model[features]
             y = df_model['Label']
             groups = df_model['Subject']
-            groups_detailed = df_model['Group_Detailed'] # Extract detailed group for error analysis
             
-            # Calculate AUPRC Baseline
-            baseline_prc = y.sum() / len(y) # Proportion of Pain class
-            
-            print(f"      Epochs: {len(y)} | Class Balance: {y.value_counts().to_dict()} | PRC Baseline: {baseline_prc:.3f}")
+            print(f"      Epochs: {len(y)} | Class Balance: {y.value_counts().to_dict()}")
 
             roc_data_list = []
-            prc_data_list = []
             
             # --- OUTER LOOP (Validation) ---
             # StratifiedGroupKFold ensures subjects are not split between train/test
@@ -341,14 +344,13 @@ def run_benchmark():
                 pipeline = Pipeline([('scaler', scaler), ('clf', config['model'])])
 
                 # --- INNER LOOP (Hyperparameter Tuning) ---
-                # n_splits=3 to prevent crashes on smaller subsets
-                inner_cv = StratifiedGroupKFold(n_splits=3) 
+                # n_splits=5 to prevent crashes on smaller subsets
+                inner_cv = StratifiedGroupKFold(n_splits=5) 
                 grid = GridSearchCV(pipeline, config['params'], cv=inner_cv, scoring='balanced_accuracy', n_jobs=-1)
 
                 y_true_all = []
                 y_pred_all = []
                 y_proba_all = []
-                y_detailed_all = [] # Store detailed labels for stratified error
                 fold_bal_accs = []
                 fold_best_params = [] 
                 
@@ -361,7 +363,6 @@ def run_benchmark():
                         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
                         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
                         groups_train = groups.iloc[train_idx]
-                        detailed_test = groups_detailed.iloc[test_idx]
                         
                         # Safety check: skip fold if class distribution is insufficient
                         if len(np.unique(groups_train)) < 3: continue
@@ -377,7 +378,7 @@ def run_benchmark():
                         best_model = grid.best_estimator_
                         y_pred = best_model.predict(X_test)
                         
-                        # Get probabilities for ROC and PRC curves
+                        # Get probabilities for ROC curve
                         if hasattr(best_model, "predict_proba"):
                             y_prob = best_model.predict_proba(X_test)[:, 1]
                         elif hasattr(best_model, "decision_function"):
@@ -388,7 +389,6 @@ def run_benchmark():
                         y_true_all.extend(y_test)
                         y_pred_all.extend(y_pred)
                         y_proba_all.extend(y_prob)
-                        y_detailed_all.extend(detailed_test)
                         
                         # Calculate Balanced Accuracy for this fold
                         recall = recall_score(y_test, y_pred, pos_label=1, zero_division=0)
@@ -408,24 +408,11 @@ def run_benchmark():
 
                     # Calculate aggregated metrics
                     mean_bal_acc = np.mean(fold_bal_accs)
-                    std_bal_acc = np.std(fold_bal_accs)
                     f1 = f1_score(y_true_all, y_pred_all, pos_label=1, zero_division=0)
                     sens = recall_score(y_true_all, y_pred_all, pos_label=1, zero_division=0)
                     spec = recall_score(y_true_all, y_pred_all, pos_label=0, zero_division=0)
                     
-                    # === 🔍 STRATIFIED ERROR ANALYSIS ===
-                    y_pred_arr = np.array(y_pred_all)
-                    y_det_arr = np.array(y_detailed_all)
-                    
-                    # 1. Sensitivity Internal CP (TDBrain)
-                    mask_tdx = (y_det_arr == 'TDBrain_ChronicPain')
-                    sens_tdx = np.mean(y_pred_arr[mask_tdx] == 1) if np.sum(mask_tdx) > 0 else np.nan
-                    
-                    # 2. Sensitivity External CP
-                    mask_ext = (y_det_arr == 'External_CP')
-                    sens_ext = np.mean(y_pred_arr[mask_ext] == 1) if np.sum(mask_ext) > 0 else np.nan
-                    
-                    tqdm.write(f"      ✅ {model_name}: BalAcc: {mean_bal_acc:.3f} | Sens Total: {sens:.2f} | Sens TDx: {sens_tdx:.2f} | Sens Ext: {sens_ext:.2f}")
+                    tqdm.write(f"      ✅ {model_name}: BalAcc: {mean_bal_acc:.3f} | Sens: {sens:.3f} | Spec: {spec:.3f}")
                     
                     # Generate Confusion Matrix
                     cm_fname = f"cm_{cond}_scen{scen_id}_{model_name}.png"
@@ -439,41 +426,28 @@ def run_benchmark():
                     
                     roc_data_list.append({'model': model_name, 'fpr': fpr, 'tpr': tpr, 'auc': roc_auc})
 
-                    # Compute AUPRC
-                    try:
-                        precision_vals, recall_vals, _ = precision_recall_curve(y_true_all, y_proba_all)
-                        auprc = average_precision_score(y_true_all, y_proba_all)
-                    except: precision_vals, recall_vals, auprc = [0], [0], 0.0
-                    
-                    prc_data_list.append({'model': model_name, 'precision': precision_vals, 'recall': recall_vals, 'auprc': auprc})
-
                     results.append({
                         'Condition': cond,
                         'Scenario': f"Scenario {scen_id}",
                         'Model': model_name,
                         'Balanced Accuracy': mean_bal_acc,
-                        'Bal_Acc_Std': std_bal_acc,
-                        'Sensitivity (Total)': sens,
-                        'Sensitivity (TDx CP)': sens_tdx,
-                        'Sensitivity (Ext CP)': sens_ext,
+                        'Sensitivity': sens,
                         'Specificity': spec,
                         'F1-Score': f1,
-                        'ROC AUC': roc_auc,
-                        'AUPRC': auprc
+                        'ROC AUC': roc_auc
                     })
 
                 except Exception as e:
                     tqdm.write(f"      ❌ FAILED {model_name}: {e}")
                     continue
 
-            # Plot Combined ROC and PRC curves for this scenario
+            # Plot Combined ROC curves for this scenario
             plot_roc_curve_combined(roc_data_list, f"ROC: {cond} - Scenario {scen_id}", f"roc_{cond}_scen{scen_id}_comparison.png")
-            plot_prc_curve_combined(prc_data_list, f"PRC: {cond} - Scenario {scen_id}", f"prc_{cond}_scen{scen_id}_comparison.png", baseline_prc)
 
     # Save final results and create summary plots
     if results:
         res_df = pd.DataFrame(results)
-        print("\n📊 FINAL MEGA BENCHMARK RESULTS Saved as final_benchmark_mega.csv (Preview):")
+        print("\n📊 FINAL MEGA BENCHMARK RESULTS (Preview):")
         print(res_df.pivot_table(index=['Condition', 'Scenario'], columns='Model', values='Balanced Accuracy'))
         
         res_df.to_csv(CSV_OUTPUT, index=False)

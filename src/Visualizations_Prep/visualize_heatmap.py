@@ -20,9 +20,10 @@ Output:
     - results/figures/heatmap_2_tdbrain_harmonized.png
     - results/figures/heatmap_3_merged_raw.png
     - results/figures/heatmap_4_merged_harmonized.png
+    - Terminal output of exact T-values for thesis text.
 
 Execution:
-    python ./FM_thesis_ML/src/Visualizations_ML/visualize_heatmap.py
+    python ./FM_thesis_ML/src/Visualizations_Prep/visualize_heatmap.py
 =============================================================================
 """
 
@@ -38,7 +39,6 @@ from pathlib import Path
 # ==========================================
 # 0. CONFIG IMPORT
 # ==========================================
-# Add 'src' to system path to import config
 current_dir = Path(__file__).resolve().parent
 sys.path.append(str(current_dir.parent))
 
@@ -49,15 +49,10 @@ from config import RESULTS_DIR, FIGURES_DIR, CHANNELS
 # =============================================================================
 DATA_FILE = RESULTS_DIR / "final_dataset.csv"
 IMG_DIR = FIGURES_DIR
-
-# Ensure output directory exists
 IMG_DIR.mkdir(parents=True, exist_ok=True)
 
-# Use CHANNELS from config (Standard 10-20)
-# CHANNELS = [...]  <-- Removed hardcoded list
-
 def get_col_name(df, ch, band):
-    """Retrieves column name, handling potential alias variations (e.g., T7 vs T3)."""
+    """Retrieves column name, handling potential alias variations."""
     col = f"{ch}_{band}"
     if col in df.columns: return col
     mapping = {'T7': 'T3', 'T8': 'T4', 'P7': 'T5', 'P8': 'T6'}
@@ -76,15 +71,11 @@ def map_merged_groups(group):
 # HELPER: GENERIC PLOTTER
 # =============================================================================
 def plot_heatmap_generic(t_matrix, bands, title, filename):
-    """Generates and saves a T-value heatmap."""
-    
     plt.figure(figsize=(8, 10))
     sns.heatmap(t_matrix, annot=True, fmt=".1f", cmap="coolwarm", center=0,
                 xticklabels=bands, yticklabels=CHANNELS, cbar_kws={'label': 'T-Value'})
     plt.title(title)
     plt.tight_layout()
-    
-    # Use IMG_DIR (Path object)
     path = IMG_DIR / filename
     plt.savefig(path)
     print(f"   ✅ Saved: {path.name}")
@@ -105,8 +96,6 @@ def run_tdbrain_standard(df_full):
                 sub = df.groupby(['Subject', 'Group_Detailed'])[col].mean().reset_index()
                 h = sub[sub['Group_Detailed'] == 'TDBrain_Healthy'][col]
                 p = sub[sub['Group_Detailed'] == 'TDBrain_ChronicPain'][col]
-                
-                # Independent T-Test
                 t_stat, _ = ttest_ind(p, h, nan_policy='omit')
                 t_matrix[i, j] = t_stat
                 
@@ -120,11 +109,9 @@ def run_tdbrain_harmonized(df_full):
     df = df_full[(df_full['Condition'] == 'EC') & (df_full['Group_Detailed'].isin(['TDBrain_Healthy', 'TDBrain_ChronicPain']))].copy()
     BANDS = ['Theta', 'Alpha', 'Beta', 'Gamma']
     
-    # Apply Harmonization (No-Delta Normalization)
     for ch in CHANNELS:
         delta_col = get_col_name(df, ch, 'Delta')
         if delta_col:
-            # Denominator: Remaining power (1 - Delta)
             denom = (1.0 - df[delta_col]).clip(lower=0.01)
             for band in BANDS:
                 col = get_col_name(df, ch, band)
@@ -138,7 +125,6 @@ def run_tdbrain_harmonized(df_full):
                 sub = df.groupby(['Subject', 'Group_Detailed'])[col].mean().reset_index()
                 h = sub[sub['Group_Detailed'] == 'TDBrain_Healthy'][col]
                 p = sub[sub['Group_Detailed'] == 'TDBrain_ChronicPain'][col]
-                
                 t_stat, _ = ttest_ind(p, h, nan_policy='omit')
                 t_matrix[i, j] = t_stat
                 
@@ -151,7 +137,6 @@ def run_merged_analyses(df_full):
     print("\n[3/4 & 4/4] Generating Merged Heatmaps (Site Effect Proof)...")
     df = df_full[df_full['Condition'] == 'EC'].copy()
     
-    # Map groups to Combined categories
     df['New_Label'] = df['Group_Detailed'].apply(map_merged_groups)
     df = df[df['New_Label'] != 'Other'].copy()
 
@@ -166,8 +151,6 @@ def run_merged_analyses(df_full):
                 sub = df.groupby(['Subject', 'New_Label'])[col].mean().reset_index()
                 h = sub[sub['New_Label'] == 'Healthy_Combined'][col]
                 p = sub[sub['New_Label'] == 'Pain_Combined'][col]
-                
-                # Welch's T-Test (equal_var=False) due to different sites/variances
                 t, _ = ttest_ind(p, h, equal_var=False, nan_policy='omit')
                 t_mat_raw[i, j] = t
                 
@@ -176,7 +159,6 @@ def run_merged_analyses(df_full):
     # --- HARMONIZED MERGED (Correction) ---
     BANDS_HARM = ['Theta', 'Alpha', 'Beta', 'Gamma']
     
-    # Apply Normalization
     for ch in CHANNELS:
         delta_col = get_col_name(df, ch, 'Delta')
         if delta_col:
@@ -193,21 +175,36 @@ def run_merged_analyses(df_full):
                 sub = df.groupby(['Subject', 'New_Label'])[col].mean().reset_index()
                 h = sub[sub['New_Label'] == 'Healthy_Combined'][col]
                 p = sub[sub['New_Label'] == 'Pain_Combined'][col]
-                
-                # Welch's T-Test
                 t, _ = ttest_ind(p, h, equal_var=False, nan_policy='omit')
                 t_mat_harm[i, j] = t
                 
     plot_heatmap_generic(t_mat_harm, BANDS_HARM, "Fig 4: Merged Harmonized (Site Effect Correction)", "heatmap_4_merged_harmonized.png")
 
+    # =========================================================================
+    # EXTRACT VALUES FOR LATEX THESIS TEXT
+    # =========================================================================
+    print("\n" + "="*60)
+    print("📝 EXACT T-VALUES FOR LATEX TEXT (Merged Harmonized)")
+    print("="*60)
+    for j, band in enumerate(BANDS_HARM):
+        band_vals = []
+        for i, ch in enumerate(CHANNELS):
+            band_vals.append((ch, t_mat_harm[i, j]))
+        
+        # Sort by T-value descending
+        band_vals.sort(key=lambda x: x[1], reverse=True)
+        
+        print(f"[{band.upper()}]")
+        print("  Highest in Pain (Positive T): " + ", ".join([f"{c} (T={v:.2f})" for c, v in band_vals[:3]]))
+        print("  Lowest in Pain  (Negative T): " + ", ".join([f"{c} (T={v:.2f})" for c, v in band_vals[-3:]]))
+    print("="*60 + "\n")
+
 if __name__ == "__main__":
     if DATA_FILE.exists():
         df_full = pd.read_csv(DATA_FILE)
-        
         run_tdbrain_standard(df_full)
         run_tdbrain_harmonized(df_full)
         run_merged_analyses(df_full)
-        
-        print(f"\n🚀 Complete! Check the '{IMG_DIR.name}' folder for outputs.")
+        print(f"🚀 Complete! Check the '{IMG_DIR.name}' folder for outputs.")
     else:
         print(f"❌ Data file not found: {DATA_FILE}")

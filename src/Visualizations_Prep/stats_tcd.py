@@ -71,7 +71,6 @@ def check_tcd():
         return
 
     # 2. Calculate Global Features (Mean across 20 channels)
-    [Image of theta and alpha wave EEG comparison]
     # Theta
     theta_cols = [f"{ch}_Theta" for ch in CHANNELS if f"{ch}_Theta" in df.columns]
     if theta_cols:
@@ -96,15 +95,44 @@ def check_tcd():
     metrics = ['Global_Theta', 'Global_Alpha']
     
     for metric in metrics:
-        if metric not in h.columns:
-            continue
-            
         val_h = h[metric].values
         val_p = p[metric].values
         
         # Normality check
-        # Use try-except to handle small sample sizes or constant values
-        try:
-            _, nh = shapiro(val_h)
-            _, np_val = shapiro(val_p)
-            is_normal = (nh > 0.05) and (np_val > 0
+        _, nh = shapiro(val_h)
+        _, np_val = shapiro(val_p)
+        
+        # Select Test: T-Test if normal, Mann-Whitney if non-normal
+        if nh > 0.05 and np_val > 0.05:
+            stat, pval = ttest_ind(val_h, val_p, equal_var=False)
+            test_type = "T-Test"
+        else:
+            stat, pval = mannwhitneyu(val_h, val_p)
+            test_type = "Mann-Whitney"
+        
+        # Determine Direction
+        direction = "HIGHER" if val_p.mean() > val_h.mean() else "LOWER"
+        
+        print(f"{metric:<15} | H: {val_h.mean():.3f} vs P: {val_p.mean():.3f} | Pain is {direction} | p={pval:.4f} ({test_type})")
+
+    # 5. Visualization (Boxplots)
+    # Melting for Seaborn
+    long_df = model_df.melt(id_vars=['Subject', 'Group_Detailed'], value_vars=metrics, var_name='Metric', value_name='Value')
+    
+    plt.figure(figsize=(10, 6))
+    
+    # Custom palette matching previous plots
+    sns.boxplot(data=long_df, x='Metric', y='Value', hue='Group_Detailed', 
+                palette={'TDBrain_Healthy': 'forestgreen', 'TDBrain_ChronicPain': 'firebrick'}, 
+                showfliers=False)
+    
+    plt.title("Thalamocortical Dysrhythmia Biomarkers (TDBrain)")
+    plt.ylabel("Relative Power")
+    plt.tight_layout()
+    
+    save_path = os.path.join(IMG_DIR, "tcd_boxplot.png")
+    plt.savefig(save_path)
+    print(f"\n✅ Plot saved to: {save_path}")
+
+if __name__ == "__main__":
+    check_tcd()

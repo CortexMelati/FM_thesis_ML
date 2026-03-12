@@ -15,13 +15,13 @@ Data Sources:
 
 Inclusion Criteria:
 1.  AGE: Minimum 18 years.
-2.  COMPLETENESS: Subject MUST have data for BOTH Eyes Closed (EC) and Eyes Open (EO) conditions.
+2.  COMPLETENESS: Subject MUST have data for BOTH Eyes Closed (EC) and Eyes Open (EO).
+3.  EPOCHS: Subject MUST have exactly 10 epochs available per condition (0-11). Amend REQUIRED_EPOCHS as needed.
 
 Labels (Y-variable):
      0 = Healthy
      1 = Chronic Pain (TDBrain + External)
-    -1 = Unknown (Informal Indication)
-    -2 = Unknown (No Indication / NaN) -> SEPARATE LABEL
+    -1 = Unknown (No Indication / NaN) -> SEPARATE LABEL
 
 Output:
     -   'results/final_dataset.csv': A comprehensive CSV where each row represents
@@ -76,14 +76,14 @@ META_CONFIG = {
         "TDBrain_ChronicPain"
     ),
     # Separate labels for Unknown categories (-1 and -2)
-    'Unknown_Informal': (
-        TDBRAIN_DIR / "TDBRAIN_participants_UNKNOWN.xlsx", 
-        -1, 
-        "TDBrain_Unknown_Informal"
-    ),
+    # 'Unknown_Informal': (
+    #     TDBRAIN_DIR / "TDBRAIN_participants_UNKNOWN.xlsx", 
+    #     -1, 
+    #     "TDBrain_Unknown_Informal"
+    # ),
     'Unknown_NaN': (
         TDBRAIN_DIR / "TDBRAIN_participants_UNKNOWN_NaNs.xlsx", 
-        -2, 
+        -1, 
         "TDBrain_Unknown_NoIndication"
     )
 }
@@ -156,10 +156,10 @@ def load_metadata_map():
 
     return meta
 
-def get_valid_files():
+def get_valid_subjects():
     """
-    Scans the results directory and returns feature files ONLY for subjects 
-    who possess data for BOTH Eyes Closed (EC) and Eyes Open (EO) conditions.
+    Scans the results directory and groups files by Subject ID.
+    Returns a dictionary ONLY for subjects who have BOTH Eyes Closed (EC) and Eyes Open (EO).
     """
     print(f"\n📂 Scanning for Completeness (EC + EO Required)...")
     
@@ -176,7 +176,7 @@ def get_valid_files():
             subject_files[sub_id] = []
         subject_files[sub_id].append(f)
         
-    valid_files_flat = []
+    valid_subjects = {}
     incomplete_count = 0
     
     for sub_id, files in subject_files.items():
@@ -185,34 +185,53 @@ def get_valid_files():
         has_eo = any('EO' in os.path.basename(f) for f in files)
         
         if has_ec and has_eo:
-            valid_files_flat.extend(files)
+            valid_subjects[sub_id] = files
         else:
             incomplete_count += 1
 
-    print(f"   ✅ Complete Subjects (EC+EO): {len(subject_files) - incomplete_count}")
+    print(f"   ✅ Complete Subjects (EC+EO): {len(valid_subjects)}")
     print(f"   ✂️  Removed Incomplete Subjects: {incomplete_count}")
     
-    return valid_files_flat
+    return valid_subjects
 
 def create_dataset():
     # Step 1: Load Metadata
     meta_map = load_metadata_map()
     
-    # Step 2: Retrieve Valid Feature Files (Paired Only)
-    feature_files = get_valid_files()
+    # Step 2: Retrieve Valid Subjects (Must have both EC and EO files)
+    valid_subjects = get_valid_subjects()
     
     all_data = []
-    skipped_count = 0 # Counter for subjects with complete data but age < 18
+    skipped_age_count = 0
+    skipped_epoch_count = 0 
+    
+    # Minimum epochs required per condition (0-11 means 12 total, but we will truncate to 10 for consistency)
+    REQUIRED_EPOCHS = 9 
     
     # Step 3: Merge Metadata and Features
-    for f in tqdm(feature_files, desc="Merging Data"):
-        filename = os.path.basename(f)
-        sub_id = filename.split('_')[0] 
+    for sub_id, files in tqdm(valid_subjects.items(), desc="Merging Data"):
         
-        # Check against metadata map (Effectively filters for Age >= 18)
-        if sub_id in meta_map:
+        # Filter 1: Check against metadata map (Effectively filters for Age >= 18)
+        if sub_id not in meta_map:
+            skipped_age_count += 1
+            continue
+            
+        subject_dfs = []
+        valid_epoch_count = True
+        
+        # Process both EC and EO files for this subject
+        for f in files:
             try:
                 df = pd.read_csv(f)
+                
+                # Filter 2: Minimum X epochs needed after autoreject
+                if len(df) < REQUIRED_EPOCHS:
+                    valid_epoch_count = False
+                    break  # Instantly fail this subject
+                
+                # Truncate to EXACTLY the required amount to ensure equal voting power
+                df = df.head(REQUIRED_EPOCHS)
+                
                 info = meta_map[sub_id]
                 
                 # Append Metadata
@@ -223,16 +242,22 @@ def create_dataset():
                 df['Dataset'] = info['Dataset']
                 
                 # Tag Condition
+                filename = os.path.basename(f)
                 if 'EC' in filename: df['Condition'] = 'EC'
                 elif 'EO' in filename: df['Condition'] = 'EO'
                 else: df['Condition'] = 'UNK'
                 
-                all_data.append(df)
+                subject_dfs.append(df)
             except Exception as e:
-                print(f"Error reading {f}: {e}")
-        else:
-            # Subject is complete but excluded due to age < 18 or missing metadata
-            skipped_count += 1
+                print(f"\nError reading {f}: {e}")
+                valid_epoch_count = False
+                break
+                
+        # If the subject passed the check for BOTH files, add them
+        if valid_epoch_count and len(subject_dfs) >= 2:
+            all_data.extend(subject_dfs)
+        elif not valid_epoch_count:
+            skipped_epoch_count += 1
 
     # Step 4: Save Final Dataset
     if all_data:
@@ -244,15 +269,18 @@ def create_dataset():
         print("✅ FINAL DATASET CREATED SUCCESSFULLY")
         print(f"📁 Location: {OUTPUT_FILE}")
         print("-" * 60)
-        print(f"🔢 Total Epochs:      {len(final_df)}")
-        print(f"👤 Unique Subjects:   {final_df['Subject'].nunique()}")
+        print(f"✂️  Excluded (Age < 18 or No Metadata): {skipped_age_count}")
+        print(f"✂️  Excluded (< {REQUIRED_EPOCHS} clean epochs):      {skipped_epoch_count}")
+        print("-" * 60)
+        print(f"🔢 Total Epochs in Dataset:   {len(final_df)}")
+        print(f"👤 Unique Subjects Included:  {final_df['Subject'].nunique()}")
         print("-" * 60)
         print("📊 DISTRIBUTION PER GROUP (Unique Subjects):")
         counts = final_df.groupby(['Group_Detailed', 'Label'])['Subject'].nunique()
         print(counts)
         print("="*60)
     else:
-        print("❌ Error: No valid data found to merge!")
+        print("\n❌ Error: No valid data found to merge!")
 
 if __name__ == "__main__":
     create_dataset()

@@ -14,8 +14,9 @@ Configurations:
 Metrics Evaluated:
 - Sensitivity (Recall Pain): The ability to correctly identify chronic pain patients.
 - Specificity (Recall Healthy): The ability to correctly identify healthy controls.
-- Balanced Accuracy, F1-Score, ROC AUC.
+- Balanced Accuracy, F1-Score, AUPRC.
 - Confusion Matrices & Classification Reports.
+- Stratified Error Analysis (TDx CP vs External CP)
 
 Execution:
     python ./FM_thesis_ML/src/ML_Riemann.py
@@ -48,7 +49,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (accuracy_score, recall_score, f1_score, 
-                             classification_report, confusion_matrix, roc_curve, auc)
+                             classification_report, confusion_matrix, roc_curve, auc,
+                             precision_recall_curve, average_precision_score)
 
 # =============================================================================
 # CONFIGURATION
@@ -147,18 +149,38 @@ def plot_roc_curve_combined(roc_data, title, filename):
     plt.savefig(IMG_DIR / filename)
     plt.close()
 
+def plot_prc_curve_combined(prc_data, title, filename, baseline):
+    """Plots multiple Precision-Recall curves (AUPRC) on a single figure for comparison."""
+    plt.figure(figsize=(8, 6))
+    for item in prc_data:
+        plt.plot(item['recall'], item['precision'], lw=2, label=f"{item['label']} (AUPRC = {item['auprc']:.2f})")
+    
+    # Baseline for PRC is the proportion of positives
+    plt.plot([0, 1], [baseline, baseline], color='navy', lw=2, linestyle='--', label=f'Baseline ({baseline:.2f})')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('Recall (Sensitivity)')
+    plt.ylabel('Precision')
+    plt.title(title)
+    plt.legend(loc="upper right")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(IMG_DIR / filename)
+    plt.close()
+
 # =============================================================================
 # 2. DATA LOADING (RAW EPOCHS)
 # =============================================================================
 def load_raw_epochs(condition='EC'):
     """
     Loads raw .npy epoch files for all valid subjects based on the master CSV.
+    Also returns the detailed group for Stratified Error Analysis.
     """
     print(f"🔍 Loading raw .npy files for condition: {condition}...")
     
     if not CSV_FILE.exists():
         print(f"❌ Error: CSV file not found at {CSV_FILE}")
-        return None, None, None
+        return None, None, None, None
 
     df = pd.read_csv(CSV_FILE)
     no_indication_ids = get_no_indication_subjects()
@@ -179,6 +201,7 @@ def load_raw_epochs(condition='EC'):
     epoch_list = []
     labels = []
     groups = [] 
+    detailed_groups = [] # Track original sources for Stratified Error Analysis
     
     for sub in subjects:
         # Get group for first occurrence of subject
@@ -194,25 +217,27 @@ def load_raw_epochs(condition='EC'):
                 epoch_list.append(data)
                 labels.extend([label] * data.shape[0])
                 groups.extend([sub] * data.shape[0])
+                detailed_groups.extend([group_det] * data.shape[0])
             except: pass
 
     if not epoch_list: 
         print("❌ No epochs loaded.")
-        return None, None, None
+        return None, None, None, None
 
     X_raw = np.concatenate(epoch_list, axis=0)
     y = np.array(labels)
     groups = np.array(groups)
+    detailed_groups = np.array(detailed_groups)
     
     print(f"✅ Loaded {X_raw.shape[0]} epochs from {len(np.unique(groups))} subjects.")
-    return X_raw, y, groups
+    return X_raw, y, groups, detailed_groups
 
 # =============================================================================
 # 3. MAIN LOOP
 # =============================================================================
 def run_comparison_full():
     
-    print("🚀 START RIEMANN FULL COMPARISON (SENSITIVITY/SPECIFICITY)...")
+    print("🚀 START RIEMANN FULL COMPARISON (SENSITIVITY/SPECIFICITY/AUPRC)...")
     
     scenarios = ['EC', 'EO']
     
@@ -230,10 +255,12 @@ def run_comparison_full():
         print(f"{'='*60}")
         
         # 1. Load Raw Data
-        X_raw, y, groups = load_raw_epochs(scen)
+        X_raw, y, groups, detailed_groups = load_raw_epochs(scen)
         if X_raw is None: continue
         
+        baseline_prc = np.sum(y) / len(y) # Proportion of Pain class for AUPRC baseline
         roc_data_list = []
+        prc_data_list = []
 
         for setting in filter_settings:
             name = setting['name']
@@ -266,11 +293,13 @@ def run_comparison_full():
             y_true_all = []
             y_pred_all = []
             y_proba_all = []
+            y_detailed_all = []
             
             print("      Running Cross-Validation...")
             for train_idx, test_idx in outer_cv.split(covs, y, groups):
                 X_train, X_test = covs[train_idx], covs[test_idx]
                 y_train, y_test = y[train_idx], y[test_idx]
+                detailed_test = detailed_groups[test_idx]
                 
                 # Fit & Predict
                 pipe.fit(X_train, y_train)
@@ -280,6 +309,7 @@ def run_comparison_full():
                 y_true_all.extend(y_test)
                 y_pred_all.extend(y_pred)
                 y_proba_all.extend(y_prob)
+                y_detailed_all.extend(detailed_test)
             
             # --- CALCULATE METRICS ---
             # Sensitivity = Recall for Class 1 (Pain)
@@ -294,16 +324,30 @@ def run_comparison_full():
             fpr, tpr, _ = roc_curve(y_true_all, y_proba_all)
             roc_auc = auc(fpr, tpr)
             
+            try:
+                precision_vals, recall_vals, _ = precision_recall_curve(y_true_all, y_proba_all)
+                auprc = average_precision_score(y_true_all, y_proba_all)
+            except: precision_vals, recall_vals, auprc = [0], [0], 0.0
+
+            # === 🔍 STRATIFIED ERROR ANALYSIS ===
+            y_pred_arr = np.array(y_pred_all)
+            y_det_arr = np.array(y_detailed_all)
+            
+            mask_tdx = (y_det_arr == 'TDBrain_ChronicPain')
+            sens_tdx = np.mean(y_pred_arr[mask_tdx] == 1) if np.sum(mask_tdx) > 0 else np.nan
+            
+            mask_ext = (y_det_arr == 'External_CP')
+            sens_ext = np.mean(y_pred_arr[mask_ext] == 1) if np.sum(mask_ext) > 0 else np.nan
+            
             # --- OUTPUT TO CONSOLE ---
             print(f"\n      📊 RESULTS: {name}")
-            print(f"      Sensitivity (Pain):  {sens:.3f}")
-            print(f"      Specificity (HC):    {spec:.3f}")
-            print(f"      Balanced Accuracy:   {bal_acc:.3f}")
-            print(f"      F1-Score:            {f1:.3f}")
-            print(f"      ROC AUC:             {roc_auc:.3f}")
-            
-            print("\n      --- Classification Report ---")
-            print(classification_report(y_true_all, y_pred_all, target_names=['Healthy', 'Pain']))
+            print(f"      Sensitivity (Total):   {sens:.3f}")
+            print(f"      Sensitivity (TDx CP):  {sens_tdx:.3f}")
+            print(f"      Sensitivity (Ext CP):  {sens_ext:.3f}")
+            print(f"      Specificity (HC):      {spec:.3f}")
+            print(f"      Balanced Accuracy:     {bal_acc:.3f}")
+            print(f"      AUPRC:                 {auprc:.3f}")
+            print(f"      ROC AUC:               {roc_auc:.3f}")
             
             # --- PLOTS ---
             safe_name = name.replace(" ", "_").replace("(", "").replace(")", "").replace(">", "gt")
@@ -312,22 +356,27 @@ def run_comparison_full():
             cm_fname = f"cm_{scen}_{safe_name}.png"
             plot_confusion_matrix(y_true_all, y_pred_all, f"CM: {scen} - {name}", cm_fname)
             
-            # Collect ROC Data
+            # Collect ROC and PRC Data
             roc_data_list.append({'label': name, 'fpr': fpr, 'tpr': tpr, 'auc': roc_auc})
+            prc_data_list.append({'label': name, 'precision': precision_vals, 'recall': recall_vals, 'auprc': auprc})
 
             # Store in Results List
             results.append({
                 'Scenario': scen,
                 'Filter': name,
-                'Sensitivity': sens,
+                'Sensitivity (Total)': sens,
+                'Sensitivity (TDx CP)': sens_tdx,
+                'Sensitivity (Ext CP)': sens_ext,
                 'Specificity': spec,
                 'Balanced Accuracy': bal_acc,
                 'F1-Score': f1,
+                'AUPRC': auprc,
                 'ROC AUC': roc_auc
             })
 
-        # Plot ROC Combined (Delta vs No Delta)
-        plot_roc_curve_combined(roc_data_list, f"Impact of Delta Band - {scen}", f"roc_compare_delta_{scen}.png")
+        # Plot ROC and PRC Combined (Delta vs No Delta)
+        plot_roc_curve_combined(roc_data_list, f"Impact of Delta Band (ROC) - {scen}", f"roc_compare_delta_{scen}.png")
+        plot_prc_curve_combined(prc_data_list, f"Impact of Delta Band (PRC) - {scen}", f"prc_compare_delta_{scen}.png", baseline_prc)
 
     # Final Table
     if results:
